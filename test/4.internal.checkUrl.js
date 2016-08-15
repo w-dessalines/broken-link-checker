@@ -1,13 +1,12 @@
 "use strict";
-var checkUrl = require("../lib/internal/checkUrl");
+const checkUrl = require("../lib/internal/checkUrl");
+const helpers  = require("./helpers");
+const Link     = require("../lib/internal/Link");
 
-var helpers = require("./helpers");
-
-var expect = require("chai").expect;
-var UrlCache = require("urlcache");
-//var urlobj = require("urlobj");
-
-var conn;
+const {after, before, describe, it} = require("mocha");
+const {expect} = require("chai");
+const {URL} = require("universal-url");
+const URLCache = require("urlcache");
 
 
 
@@ -15,67 +14,57 @@ describe("INTERNAL -- checkUrl", function()
 {
 	before( function()
 	{
-		return helpers.startConnections().then( function(connections)
-		{
-			conn = connections;
-		});
+		helpers.startServers("http://blc/", "https://blc:81/");
+		helpers.startDeadServer("http://blc:82/");
 	});
-	
-	
-	
-	after( function()
+
+
+
+	after(helpers.stopServers);
+
+
+
+	it("resolves a promise", function(done)
 	{
-		return helpers.stopConnections(conn.realPorts);
+		const auth = {};
+		const cache = new URLCache();
+		const options = helpers.options();
+		const base = new URL("http://blc/");
+		const url  = new URL("http://blc/normal/no-links.html");
+		const link = Link.resolve(Link.create(), url, base);
+
+		checkUrl(link, auth, cache, options).then(result => done());
 	});
-	
-	
-	
-	it("resolves a promise", function()
-	{
-		return checkUrl(
-			conn.absoluteUrls[0]+"/normal/no-links.html",
-			conn.absoluteUrls[0],
-			new UrlCache(),
-			helpers.options()
-		)
-		.then( function(result)
-		{
-			expect(result).to.be.like(
-			{
-				url: {},
-				base: {},
-				http: { response:{} },
-				html: {}
-			});
-		});
-	});
-	
-	
-	
+
+
+
 	describe("shall not be broken with a REAL HOST and REAL PATH from", function()
 	{
 		it("an absolute url", function()
 		{
-			return checkUrl(
-				conn.absoluteUrls[0]+"/normal/no-links.html",
-				conn.absoluteUrls[0],
-				new UrlCache(),
-				helpers.options()
-			)
-			.then( function(result)
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options();
+			const link = Link.resolve(Link.create(),
+				"http://blc/normal/no-links.html",
+				"http://blc/"
+			);
+
+			return checkUrl(link, auth, cache, options).then(result =>
 			{
-				expect(result).to.be.like(
+				expect(result).to.containSubset(
 				{
 					url:
 					{
-						original: conn.absoluteUrls[0]+"/normal/no-links.html",
-						resolved: conn.absoluteUrls[0]+"/normal/no-links.html",
-						redirected: null
+						original:          "http://blc/normal/no-links.html",
+						resolved:   { href:"http://blc/normal/no-links.html" },
+						rebased:    { href:"http://blc/normal/no-links.html" },
+						redirected:        null
 					},
 					base:
 					{
-						original: conn.absoluteUrls[0],
-						resolved: conn.absoluteUrls[0]+"/"
+						resolved: { href:"http://blc/" },
+						rebased:  { href:"http://blc/" }
 					},
 					http: { response: { redirects:[] } },
 					broken: false,
@@ -88,31 +77,34 @@ describe("INTERNAL -- checkUrl", function()
 				expect(result.http.response.redirects).to.have.length(0);
 			});
 		});
-		
-		
-		
+
+
+
 		it("a scheme-relative url", function()
 		{
-			return checkUrl(
-				conn.relativeUrls[0]+"/normal/no-links.html",
-				conn.absoluteUrls[0],
-				new UrlCache(),
-				helpers.options()
-			)
-			.then( function(result)
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options();
+			const link = Link.resolve(Link.create(),
+				"//blc/normal/no-links.html",
+				"http://blc/"
+			);
+
+			return checkUrl(link, auth, cache, options).then(result =>
 			{
-				expect(result).to.be.like(
+				expect(result).to.containSubset(
 				{
 					url:
 					{
-						original: conn.relativeUrls[0]+"/normal/no-links.html",
-						resolved: conn.absoluteUrls[0]+"/normal/no-links.html",
-						redirected: null
+						original:               "//blc/normal/no-links.html",
+						resolved:   { href:"http://blc/normal/no-links.html" },
+						rebased:    { href:"http://blc/normal/no-links.html" },
+						redirected:        null
 					},
 					base:
 					{
-						original: conn.absoluteUrls[0],
-						resolved: conn.absoluteUrls[0]+"/"
+						resolved: { href:"http://blc/" },
+						rebased:  { href:"http://blc/" }
 					},
 					http: { response: { redirects:[] } },
 					broken: false,
@@ -125,31 +117,34 @@ describe("INTERNAL -- checkUrl", function()
 				expect(result.http.response.redirects).to.have.length(0);
 			});
 		});
-		
-		
-		
+
+
+
 		it("a root-path-relative url", function()
 		{
-			return checkUrl(
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options();
+			const link = Link.resolve(Link.create(),
 				"/normal/no-links.html",
-				conn.absoluteUrls[0],
-				new UrlCache(),
-				helpers.options()
-			)
-			.then( function(result)
+				"http://blc/"
+			);
+
+			return checkUrl(link, auth, cache, options).then(result =>
 			{
-				expect(result).to.be.like(
+				expect(result).to.containSubset(
 				{
 					url:
 					{
-						original: "/normal/no-links.html",
-						resolved: conn.absoluteUrls[0]+"/normal/no-links.html",
-						redirected: null
+						original:                    "/normal/no-links.html",
+						resolved:   { href:"http://blc/normal/no-links.html" },
+						rebased:    { href:"http://blc/normal/no-links.html" },
+						redirected:        null
 					},
 					base:
 					{
-						original: conn.absoluteUrls[0],
-						resolved: conn.absoluteUrls[0]+"/"
+						resolved: { href:"http://blc/" },
+						rebased:  { href:"http://blc/" }
 					},
 					http: { response: { redirects:[] } },
 					broken: false,
@@ -162,31 +157,34 @@ describe("INTERNAL -- checkUrl", function()
 				expect(result.http.response.redirects).to.have.length(0);
 			});
 		});
-		
-		
-		
+
+
+
 		it("a path-relative url", function()
 		{
-			return checkUrl(
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options();
+			const link = Link.resolve(Link.create(),
 				"normal/no-links.html",
-				conn.absoluteUrls[0],
-				new UrlCache(),
-				helpers.options()
-			)
-			.then( function(result)
+				"http://blc/"
+			);
+
+			return checkUrl(link, auth, cache, options).then(result =>
 			{
-				expect(result).to.be.like(
+				expect(result).to.containSubset(
 				{
 					url:
 					{
-						original: "normal/no-links.html",
-						resolved: conn.absoluteUrls[0]+"/normal/no-links.html",
-						redirected: null
+						original:                     "normal/no-links.html",
+						resolved:   { href:"http://blc/normal/no-links.html" },
+						rebased:    { href:"http://blc/normal/no-links.html" },
+						redirected:        null
 					},
 					base:
 					{
-						original: conn.absoluteUrls[0],
-						resolved: conn.absoluteUrls[0]+"/"
+						resolved: { href:"http://blc/" },
+						rebased:  { href:"http://blc/" }
 					},
 					http: { response: { redirects:[] } },
 					broken: false,
@@ -199,31 +197,34 @@ describe("INTERNAL -- checkUrl", function()
 				expect(result.http.response.redirects).to.have.length(0);
 			});
 		});
-		
-		
-		
+
+
+
 		it("a query-relative url", function()
 		{
-			return checkUrl(
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options();
+			const link = Link.resolve(Link.create(),
 				"?query",
-				conn.absoluteUrls[0]+"/normal/no-links.html",
-				new UrlCache(),
-				helpers.options()
-			)
-			.then( function(result)
+				"http://blc/normal/no-links.html"
+			);
+
+			return checkUrl(link, auth, cache, options).then(result =>
 			{
-				expect(result).to.be.like(
+				expect(result).to.containSubset(
 				{
 					url:
 					{
-						original: "?query",
-						resolved: conn.absoluteUrls[0]+"/normal/no-links.html?query",
-						redirected: null
+						original:                                         "?query",
+						resolved:   { href:"http://blc/normal/no-links.html?query" },
+						rebased:    { href:"http://blc/normal/no-links.html?query" },
+						redirected:        null
 					},
 					base:
 					{
-						original: conn.absoluteUrls[0]+"/normal/no-links.html",
-						resolved: conn.absoluteUrls[0]+"/normal/no-links.html"
+						resolved: { href:"http://blc/normal/no-links.html" },
+						rebased:  { href:"http://blc/normal/no-links.html" }
 					},
 					http: { response: { redirects:[] } },
 					broken: false,
@@ -236,31 +237,34 @@ describe("INTERNAL -- checkUrl", function()
 				expect(result.http.response.redirects).to.have.length(0);
 			});
 		});
-		
-		
-		
+
+
+
 		it("a hash-relative url", function()
 		{
-			return checkUrl(
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options();
+			const link = Link.resolve(Link.create(),
 				"#hash",
-				conn.absoluteUrls[0]+"/normal/no-links.html",
-				new UrlCache(),
-				helpers.options()
-			)
-			.then( function(result)
+				"http://blc/normal/no-links.html"
+			);
+
+			return checkUrl(link, auth, cache, options).then(result =>
 			{
-				expect(result).to.be.like(
+				expect(result).to.containSubset(
 				{
 					url:
 					{
-						original: "#hash",
-						resolved: conn.absoluteUrls[0]+"/normal/no-links.html#hash",
-						redirected: null
+						original:                                         "#hash",
+						resolved:   { href:"http://blc/normal/no-links.html#hash" },
+						rebased:    { href:"http://blc/normal/no-links.html#hash" },
+						redirected:        null
 					},
 					base:
 					{
-						original: conn.absoluteUrls[0]+"/normal/no-links.html",
-						resolved: conn.absoluteUrls[0]+"/normal/no-links.html"
+						resolved: { href:"http://blc/normal/no-links.html" },
+						rebased:  { href:"http://blc/normal/no-links.html" }
 					},
 					http: { response: { redirects:[] } },
 					broken: false,
@@ -273,31 +277,34 @@ describe("INTERNAL -- checkUrl", function()
 				expect(result.http.response.redirects).to.have.length(0);
 			});
 		});
-		
-		
-		
+
+
+
 		it("an empty url", function()
 		{
-			return checkUrl(
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options();
+			const link = Link.resolve(Link.create(),
 				"",
-				conn.absoluteUrls[0]+"/normal/no-links.html",
-				new UrlCache(),
-				helpers.options()
-			)
-			.then( function(result)
+				"http://blc/normal/no-links.html"
+			);
+
+			return checkUrl(link, auth, cache, options).then(result =>
 			{
-				expect(result).to.be.like(
+				expect(result).to.containSubset(
 				{
 					url:
 					{
-						original: "",
-						resolved: conn.absoluteUrls[0]+"/normal/no-links.html",
-						redirected: null
+						original:          "",
+						resolved:   { href:"http://blc/normal/no-links.html" },
+						rebased:    { href:"http://blc/normal/no-links.html" },
+						redirected:        null
 					},
 					base:
 					{
-						original: conn.absoluteUrls[0]+"/normal/no-links.html",
-						resolved: conn.absoluteUrls[0]+"/normal/no-links.html"
+						resolved: { href:"http://blc/normal/no-links.html" },
+						rebased:  { href:"http://blc/normal/no-links.html" }
 					},
 					http: { response: { redirects:[] } },
 					broken: false,
@@ -311,33 +318,36 @@ describe("INTERNAL -- checkUrl", function()
 			});
 		});
 	});
-	
-	
-	
+
+
+
 	describe("shall be broken with a REAL HOST and FAKE PATH from", function()
 	{
 		it("an absolute url", function()
 		{
-			return checkUrl(
-				conn.absoluteUrls[0]+"/normal/fake.html",
-				conn.absoluteUrls[0],
-				new UrlCache(),
-				helpers.options()
-			)
-			.then( function(result)
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options();
+			const link = Link.resolve(Link.create(),
+				"http://blc/normal/fake.html",
+				"http://blc/"
+			);
+
+			return checkUrl(link, auth, cache, options).then(result =>
 			{
-				expect(result).to.be.like(
+				expect(result).to.containSubset(
 				{
 					url:
 					{
-						original: conn.absoluteUrls[0]+"/normal/fake.html",
-						resolved: conn.absoluteUrls[0]+"/normal/fake.html",
-						redirected: null
+						original:          "http://blc/normal/fake.html",
+						resolved:   { href:"http://blc/normal/fake.html" },
+						rebased:    { href:"http://blc/normal/fake.html" },
+						redirected:        null
 					},
 					base:
 					{
-						original: conn.absoluteUrls[0],
-						resolved: conn.absoluteUrls[0]+"/"
+						resolved: { href:"http://blc/" },
+						rebased:  { href:"http://blc/" }
 					},
 					http: { response: { redirects:[] } },
 					broken: true,
@@ -350,31 +360,34 @@ describe("INTERNAL -- checkUrl", function()
 				expect(result.http.response.redirects).to.have.length(0);
 			});
 		});
-		
-		
-		
+
+
+
 		it("a scheme-relative url", function()
 		{
-			return checkUrl(
-				conn.relativeUrls[0]+"/normal/fake.html",
-				conn.absoluteUrls[0],
-				new UrlCache(),
-				helpers.options()
-			)
-			.then( function(result)
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options();
+			const link = Link.resolve(Link.create(),
+				"//blc/normal/fake.html",
+				"http://blc/"
+			);
+
+			return checkUrl(link, auth, cache, options).then(result =>
 			{
-				expect(result).to.be.like(
+				expect(result).to.containSubset(
 				{
 					url:
 					{
-						original: conn.relativeUrls[0]+"/normal/fake.html",
-						resolved: conn.absoluteUrls[0]+"/normal/fake.html",
-						redirected: null
+						original:               "//blc/normal/fake.html",
+						resolved:   { href:"http://blc/normal/fake.html" },
+						rebased:    { href:"http://blc/normal/fake.html" },
+						redirected:        null
 					},
 					base:
 					{
-						original: conn.absoluteUrls[0],
-						resolved: conn.absoluteUrls[0]+"/"
+						resolved: { href:"http://blc/" },
+						rebased:  { href:"http://blc/" }
 					},
 					http: { response: { redirects:[] } },
 					broken: true,
@@ -387,31 +400,34 @@ describe("INTERNAL -- checkUrl", function()
 				expect(result.http.response.redirects).to.have.length(0);
 			});
 		});
-		
-		
-		
+
+
+
 		it("a root-path-relative url", function()
 		{
-			return checkUrl(
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options();
+			const link = Link.resolve(Link.create(),
 				"/normal/fake.html",
-				conn.absoluteUrls[0],
-				new UrlCache(),
-				helpers.options()
-			)
-			.then( function(result)
+				"http://blc/"
+			);
+
+			return checkUrl(link, auth, cache, options).then(result =>
 			{
-				expect(result).to.be.like(
+				expect(result).to.containSubset(
 				{
 					url:
 					{
-						original: "/normal/fake.html",
-						resolved: conn.absoluteUrls[0]+"/normal/fake.html",
-						redirected: null
+						original:                    "/normal/fake.html",
+						resolved:   { href:"http://blc/normal/fake.html" },
+						rebased:    { href:"http://blc/normal/fake.html" },
+						redirected:        null
 					},
 					base:
 					{
-						original: conn.absoluteUrls[0],
-						resolved: conn.absoluteUrls[0]+"/"
+						resolved: { href:"http://blc/" },
+						rebased:  { href:"http://blc/" }
 					},
 					http: { response: { redirects:[] } },
 					broken: true,
@@ -424,31 +440,34 @@ describe("INTERNAL -- checkUrl", function()
 				expect(result.http.response.redirects).to.have.length(0);
 			});
 		});
-		
-		
-		
+
+
+
 		it("a path-relative url", function()
 		{
-			return checkUrl(
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options();
+			const link = Link.resolve(Link.create(),
 				"normal/fake.html",
-				conn.absoluteUrls[0],
-				new UrlCache(),
-				helpers.options()
-			)
-			.then( function(result)
+				"http://blc/"
+			);
+
+			return checkUrl(link, auth, cache, options).then(result =>
 			{
-				expect(result).to.be.like(
+				expect(result).to.containSubset(
 				{
 					url:
 					{
-						original: "normal/fake.html",
-						resolved: conn.absoluteUrls[0]+"/normal/fake.html",
-						redirected: null
+						original:                     "normal/fake.html",
+						resolved:   { href:"http://blc/normal/fake.html" },
+						rebased:    { href:"http://blc/normal/fake.html" },
+						redirected:        null
 					},
 					base:
 					{
-						original: conn.absoluteUrls[0],
-						resolved: conn.absoluteUrls[0]+"/"
+						resolved: { href:"http://blc/" },
+						rebased:  { href:"http://blc/" }
 					},
 					http: { response: { redirects:[] } },
 					broken: true,
@@ -461,31 +480,34 @@ describe("INTERNAL -- checkUrl", function()
 				expect(result.http.response.redirects).to.have.length(0);
 			});
 		});
-		
-		
-		
+
+
+
 		it("a query-relative url", function()
 		{
-			return checkUrl(
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options();
+			const link = Link.resolve(Link.create(),
 				"?query",
-				conn.absoluteUrls[0]+"/normal/fake.html",
-				new UrlCache(),
-				helpers.options()
-			)
-			.then( function(result)
+				"http://blc/normal/fake.html"
+			);
+
+			return checkUrl(link, auth, cache, options).then(result =>
 			{
-				expect(result).to.be.like(
+				expect(result).to.containSubset(
 				{
 					url:
 					{
-						original: "?query",
-						resolved: conn.absoluteUrls[0]+"/normal/fake.html?query",
-						redirected: null
+						original:                                     "?query",
+						resolved:   { href:"http://blc/normal/fake.html?query" },
+						rebased:    { href:"http://blc/normal/fake.html?query" },
+						redirected:        null
 					},
 					base:
 					{
-						original: conn.absoluteUrls[0]+"/normal/fake.html",
-						resolved: conn.absoluteUrls[0]+"/normal/fake.html"
+						resolved: { href:"http://blc/normal/fake.html" },
+						rebased:  { href:"http://blc/normal/fake.html" }
 					},
 					http: { response: { redirects:[] } },
 					broken: true,
@@ -498,31 +520,34 @@ describe("INTERNAL -- checkUrl", function()
 				expect(result.http.response.redirects).to.have.length(0);
 			});
 		});
-		
-		
-		
+
+
+
 		it("a hash-relative url", function()
 		{
-			return checkUrl(
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options();
+			const link = Link.resolve(Link.create(),
 				"#hash",
-				conn.absoluteUrls[0]+"/normal/fake.html",
-				new UrlCache(),
-				helpers.options()
-			)
-			.then( function(result)
+				"http://blc/normal/fake.html"
+			);
+
+			return checkUrl(link, auth, cache, options).then(result =>
 			{
-				expect(result).to.be.like(
+				expect(result).to.containSubset(
 				{
 					url:
 					{
-						original: "#hash",
-						resolved: conn.absoluteUrls[0]+"/normal/fake.html#hash",
-						redirected: null
+						original:                                     "#hash",
+						resolved:   { href:"http://blc/normal/fake.html#hash" },
+						rebased:    { href:"http://blc/normal/fake.html#hash" },
+						redirected:        null
 					},
 					base:
 					{
-						original: conn.absoluteUrls[0]+"/normal/fake.html",
-						resolved: conn.absoluteUrls[0]+"/normal/fake.html"
+						resolved: { href:"http://blc/normal/fake.html" },
+						rebased:  { href:"http://blc/normal/fake.html" }
 					},
 					http: { response: { redirects:[] } },
 					broken: true,
@@ -535,31 +560,34 @@ describe("INTERNAL -- checkUrl", function()
 				expect(result.http.response.redirects).to.have.length(0);
 			});
 		});
-		
-		
-		
+
+
+
 		it("an empty url", function()
 		{
-			return checkUrl(
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options();
+			const link = Link.resolve(Link.create(),
 				"",
-				conn.absoluteUrls[0]+"/normal/fake.html",
-				new UrlCache(),
-				helpers.options()
-			)
-			.then( function(result)
+				"http://blc/normal/fake.html"
+			);
+
+			return checkUrl(link, auth, cache, options).then(result =>
 			{
-				expect(result).to.be.like(
+				expect(result).to.containSubset(
 				{
 					url:
 					{
-						original: "",
-						resolved: conn.absoluteUrls[0]+"/normal/fake.html",
-						redirected: null
+						original:          "",
+						resolved:   { href:"http://blc/normal/fake.html" },
+						rebased:    { href:"http://blc/normal/fake.html" },
+						redirected:        null
 					},
 					base:
 					{
-						original: conn.absoluteUrls[0]+"/normal/fake.html",
-						resolved: conn.absoluteUrls[0]+"/normal/fake.html"
+						resolved: { href:"http://blc/normal/fake.html" },
+						rebased:  { href:"http://blc/normal/fake.html" }
 					},
 					http: { response: { redirects:[] } },
 					broken: true,
@@ -573,35 +601,38 @@ describe("INTERNAL -- checkUrl", function()
 			});
 		});
 	});
-	
-	
-	
+
+
+
 	// Technically it's a real host with a fake port, but same goal
 	// and faster than testing a remote http://asdf1234.asdf1234
-	describe("shall be broken and have error with a FAKE HOST from", function()
+	describe("shall be broken with a FAKE HOST from", function()
 	{
 		it("an absolute url", function()
 		{
-			return checkUrl(
-				conn.fakeAbsoluteUrl+"/path/to/resource.html",
-				conn.fakeAbsoluteUrl,
-				new UrlCache(),
-				helpers.options()
-			)
-			.then( function(result)
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options();
+			const link = Link.resolve(Link.create(),
+				"http://blc:82/path/to/resource.html",
+				"http://blc:82/"
+			);
+
+			return checkUrl(link, auth, cache, options).then(result =>
 			{
-				expect(result).to.be.like(
+				expect(result).to.containSubset(
 				{
 					url:
 					{
-						original: conn.fakeAbsoluteUrl+"/path/to/resource.html",
-						resolved: conn.fakeAbsoluteUrl+"/path/to/resource.html",
-						redirected: null
+						original:          "http://blc:82/path/to/resource.html",
+						resolved:   { href:"http://blc:82/path/to/resource.html" },
+						rebased:    { href:"http://blc:82/path/to/resource.html" },
+						redirected:        null
 					},
 					base:
 					{
-						original: conn.fakeAbsoluteUrl,
-						resolved: conn.fakeAbsoluteUrl+"/"
+						resolved: { href:"http://blc:82/" },
+						rebased:  { href:"http://blc:82/" }
 					},
 					http: { response:null },
 					broken: true,
@@ -613,31 +644,34 @@ describe("INTERNAL -- checkUrl", function()
 				});
 			});
 		});
-		
-		
-		
+
+
+
 		it("a scheme-relative url", function()
 		{
-			return checkUrl(
-				conn.fakeRelativeUrl+"/path/to/resource.html",
-				conn.fakeAbsoluteUrl,
-				new UrlCache(),
-				helpers.options()
-			)
-			.then( function(result)
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options();
+			const link = Link.resolve(Link.create(),
+				"//blc:82/path/to/resource.html",
+				"http://blc:82/"
+			);
+
+			return checkUrl(link, auth, cache, options).then(result =>
 			{
-				expect(result).to.be.like(
+				expect(result).to.containSubset(
 				{
 					url:
 					{
-						original: conn.fakeRelativeUrl+"/path/to/resource.html",
-						resolved: conn.fakeAbsoluteUrl+"/path/to/resource.html",
-						redirected: null
+						original:               "//blc:82/path/to/resource.html",
+						resolved:   { href:"http://blc:82/path/to/resource.html" },
+						rebased:    { href:"http://blc:82/path/to/resource.html" },
+						redirected:        null
 					},
 					base:
 					{
-						original: conn.fakeAbsoluteUrl,
-						resolved: conn.fakeAbsoluteUrl+"/"
+						resolved: { href:"http://blc:82/" },
+						rebased:  { href:"http://blc:82/" }
 					},
 					http: { response:null },
 					broken: true,
@@ -649,31 +683,34 @@ describe("INTERNAL -- checkUrl", function()
 				});
 			});
 		});
-		
-		
-		
+
+
+
 		it("a root-path-relative url", function()
 		{
-			return checkUrl(
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options();
+			const link = Link.resolve(Link.create(),
 				"/path/to/resource.html",
-				conn.fakeAbsoluteUrl,
-				new UrlCache(),
-				helpers.options()
-			)
-			.then( function(result)
+				"http://blc:82/"
+			);
+
+			return checkUrl(link, auth, cache, options).then(result =>
 			{
-				expect(result).to.be.like(
+				expect(result).to.containSubset(
 				{
 					url:
 					{
-						original: "/path/to/resource.html",
-						resolved: conn.fakeAbsoluteUrl+"/path/to/resource.html",
-						redirected: null
+						original:                       "/path/to/resource.html",
+						resolved:   { href:"http://blc:82/path/to/resource.html" },
+						rebased:    { href:"http://blc:82/path/to/resource.html" },
+						redirected:        null
 					},
 					base:
 					{
-						original: conn.fakeAbsoluteUrl,
-						resolved: conn.fakeAbsoluteUrl+"/"
+						resolved: { href:"http://blc:82/" },
+						rebased:  { href:"http://blc:82/" }
 					},
 					http: { response:null },
 					broken: true,
@@ -685,31 +722,34 @@ describe("INTERNAL -- checkUrl", function()
 				});
 			});
 		});
-		
-		
-		
+
+
+
 		it("a path-relative url", function()
 		{
-			return checkUrl(
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options();
+			const link = Link.resolve(Link.create(),
 				"path/to/resource.html",
-				conn.fakeAbsoluteUrl,
-				new UrlCache(),
-				helpers.options()
-			)
-			.then( function(result)
+				"http://blc:82/"
+			);
+
+			return checkUrl(link, auth, cache, options).then(result =>
 			{
-				expect(result).to.be.like(
+				expect(result).to.containSubset(
 				{
 					url:
 					{
-						original: "path/to/resource.html",
-						resolved: conn.fakeAbsoluteUrl+"/path/to/resource.html",
-						redirected: null
+						original:                        "path/to/resource.html",
+						resolved:   { href:"http://blc:82/path/to/resource.html" },
+						rebased:    { href:"http://blc:82/path/to/resource.html" },
+						redirected:        null
 					},
 					base:
 					{
-						original: conn.fakeAbsoluteUrl,
-						resolved: conn.fakeAbsoluteUrl+"/"
+						resolved: { href:"http://blc:82/" },
+						rebased:  { href:"http://blc:82/" }
 					},
 					http: { response:null },
 					broken: true,
@@ -721,31 +761,34 @@ describe("INTERNAL -- checkUrl", function()
 				});
 			});
 		});
-		
-		
-		
+
+
+
 		it("a query-relative url", function()
 		{
-			return checkUrl(
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options();
+			const link = Link.resolve(Link.create(),
 				"?query",
-				conn.fakeAbsoluteUrl+"/path/to/resource.html",
-				new UrlCache(),
-				helpers.options()
-			)
-			.then( function(result)
+				"http://blc:82/path/to/resource.html"
+			);
+
+			return checkUrl(link, auth, cache, options).then(result =>
 			{
-				expect(result).to.be.like(
+				expect(result).to.containSubset(
 				{
 					url:
 					{
-						original: "?query",
-						resolved: conn.fakeAbsoluteUrl+"/path/to/resource.html?query",
-						redirected: null
+						original:                                             "?query",
+						resolved:   { href:"http://blc:82/path/to/resource.html?query" },
+						rebased:    { href:"http://blc:82/path/to/resource.html?query" },
+						redirected:        null
 					},
 					base:
 					{
-						original: conn.fakeAbsoluteUrl+"/path/to/resource.html",
-						resolved: conn.fakeAbsoluteUrl+"/path/to/resource.html"
+						resolved: { href:"http://blc:82/path/to/resource.html" },
+						rebased:  { href:"http://blc:82/path/to/resource.html" }
 					},
 					http: { response:null },
 					broken: true,
@@ -757,31 +800,34 @@ describe("INTERNAL -- checkUrl", function()
 				});
 			});
 		});
-		
-		
-		
+
+
+
 		it("a hash-relative url", function()
 		{
-			return checkUrl(
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options();
+			const link = Link.resolve(Link.create(),
 				"#hash",
-				conn.fakeAbsoluteUrl+"/path/to/resource.html",
-				new UrlCache(),
-				helpers.options()
-			)
-			.then( function(result)
+				"http://blc:82/path/to/resource.html"
+			);
+
+			return checkUrl(link, auth, cache, options).then(result =>
 			{
-				expect(result).to.be.like(
+				expect(result).to.containSubset(
 				{
 					url:
 					{
-						original: "#hash",
-						resolved: conn.fakeAbsoluteUrl+"/path/to/resource.html#hash",
-						redirected: null
+						original:                                             "#hash",
+						resolved:   { href:"http://blc:82/path/to/resource.html#hash" },
+						rebased:    { href:"http://blc:82/path/to/resource.html#hash" },
+						redirected:        null
 					},
 					base:
 					{
-						original: conn.fakeAbsoluteUrl+"/path/to/resource.html",
-						resolved: conn.fakeAbsoluteUrl+"/path/to/resource.html"
+						resolved: { href:"http://blc:82/path/to/resource.html" },
+						rebased:  { href:"http://blc:82/path/to/resource.html" }
 					},
 					http: { response:null },
 					broken: true,
@@ -793,31 +839,34 @@ describe("INTERNAL -- checkUrl", function()
 				});
 			});
 		});
-		
-		
-		
+
+
+
 		it("an empty url", function()
 		{
-			return checkUrl(
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options();
+			const link = Link.resolve(Link.create(),
 				"",
-				conn.fakeAbsoluteUrl+"/path/to/resource.html",
-				new UrlCache(),
-				helpers.options()
-			)
-			.then( function(result)
+				"http://blc:82/path/to/resource.html"
+			);
+
+			return checkUrl(link, auth, cache, options).then(result =>
 			{
-				expect(result).to.be.like(
+				expect(result).to.containSubset(
 				{
 					url:
 					{
-						original: "",
-						resolved: conn.fakeAbsoluteUrl+"/path/to/resource.html",
-						redirected: null
+						original:          "",
+						resolved:   { href:"http://blc:82/path/to/resource.html" },
+						rebased:    { href:"http://blc:82/path/to/resource.html" },
+						redirected:        null
 					},
 					base:
 					{
-						original: conn.fakeAbsoluteUrl+"/path/to/resource.html",
-						resolved: conn.fakeAbsoluteUrl+"/path/to/resource.html"
+						resolved: { href:"http://blc:82/path/to/resource.html" },
+						rebased:  { href:"http://blc:82/path/to/resource.html" }
 					},
 					http: { response:null },
 					broken: true,
@@ -830,76 +879,36 @@ describe("INTERNAL -- checkUrl", function()
 			});
 		});
 	});
-	
-	
-	
-	describe("shall be broken and have error with NO HOST from", function()
+
+
+
+	describe("shall be broken with NO HOST from", function()
 	{
 		it("an absolute url", function()
 		{
-			return checkUrl(
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options();
+			const link = Link.resolve(Link.create(),
 				"http://",
-				null,
-				new UrlCache(),
-				helpers.options()
-			)
-			.then( function(result)
+				null
+			);
+
+			return checkUrl(link, auth, cache, options).then(result =>
 			{
-				expect(result).to.be.like(
+				expect(result).to.containSubset(
 				{
 					url:
 					{
 						original: "http://",
-						resolved: "http:///",
-						redirected: null
-					},
-					base:
-					{
-						original: null,
-						resolved: null
-					},
-					http: { response:null },
-					broken: true,
-					//brokenReason: "ERRNO_ECONNRESET",
-					excluded: null,
-					excludedReason: null,
-					internal: null,
-					samePage: null
-				});
-				
-				expect(result.brokenReason).to.satisfy( function(value)
-				{
-					return value==="ERRNO_ECONNRESET" ||  // OSX, Node <=5.5.x
-					       value==="ERRNO_ENOTFOUND" ||   // OSX, Node >=5.6.x
-					       value==="ERRNO_ECONNREFUSED";  // Linux
-				});
-			});
-		});
-		
-		
-		
-		it("a scheme-relative url", function()
-		{
-			return checkUrl(
-				conn.relativeUrls[0]+"/no-links.html",
-				null,
-				new UrlCache(),
-				helpers.options()
-			)
-			.then( function(result)
-			{
-				expect(result).to.be.like(
-				{
-					url:
-					{
-						original: conn.relativeUrls[0]+"/no-links.html",
 						resolved: null,
+						rebased: null,
 						redirected: null
 					},
 					base:
 					{
-						original: null,
-						resolved: null
+						resolved: null,
+						rebased: null
 					},
 					http: { response:null },
 					broken: true,
@@ -911,31 +920,73 @@ describe("INTERNAL -- checkUrl", function()
 				});
 			});
 		});
-		
-		
-		
+
+
+
+		it("a scheme-relative url", function()
+		{
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options();
+			const link = Link.resolve(Link.create(),
+				"//blc/normal/no-links.html",
+				null
+			);
+
+			return checkUrl(link, auth, cache, options).then(result =>
+			{
+				expect(result).to.containSubset(
+				{
+					url:
+					{
+						original: "//blc/normal/no-links.html",
+						resolved: null,
+						rebased: null,
+						redirected: null
+					},
+					base:
+					{
+						resolved: null,
+						rebased: null
+					},
+					http: { response:null },
+					broken: true,
+					brokenReason: "BLC_INVALID",
+					excluded: null,
+					excludedReason: null,
+					internal: null,
+					samePage: null
+				});
+			});
+		});
+
+
+
 		it("a root-path-relative url", function()
 		{
-			return checkUrl(
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options();
+			const link = Link.resolve(Link.create(),
 				"/normal/no-links.html",
-				null,
-				new UrlCache(),
-				helpers.options()
-			)
-			.then( function(result)
+				null
+			);
+
+			return checkUrl(link, auth, cache, options).then(result =>
 			{
-				expect(result).to.be.like(
+				expect(result).to.containSubset(
 				{
 					url:
 					{
 						original: "/normal/no-links.html",
 						resolved: null,
+						rebased: null,
 						redirected: null
 					},
 					base:
 					{
-						original: null,
-						resolved: null
+						resolved: null,
+						rebased: null
 					},
 					http: { response:null },
 					broken: true,
@@ -947,31 +998,34 @@ describe("INTERNAL -- checkUrl", function()
 				});
 			});
 		});
-		
-		
-		
+
+
+
 		it("a path-relative url", function()
 		{
-			return checkUrl(
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options();
+			const link = Link.resolve(Link.create(),
 				"normal/no-links.html",
-				null,
-				new UrlCache(),
-				helpers.options()
-			)
-			.then( function(result)
+				null
+			);
+
+			return checkUrl(link, auth, cache, options).then(result =>
 			{
-				expect(result).to.be.like(
+				expect(result).to.containSubset(
 				{
 					url:
 					{
 						original: "normal/no-links.html",
 						resolved: null,
+						rebased: null,
 						redirected: null
 					},
 					base:
 					{
-						original: null,
-						resolved: null
+						resolved: null,
+						rebased: null
 					},
 					http: { response:null },
 					broken: true,
@@ -983,31 +1037,34 @@ describe("INTERNAL -- checkUrl", function()
 				});
 			});
 		});
-		
-		
-		
+
+
+
 		it("a query-relative url", function()
 		{
-			return checkUrl(
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options();
+			const link = Link.resolve(Link.create(),
 				"?query",
-				null,
-				new UrlCache(),
-				helpers.options()
-			)
-			.then( function(result)
+				null
+			);
+
+			return checkUrl(link, auth, cache, options).then(result =>
 			{
-				expect(result).to.be.like(
+				expect(result).to.containSubset(
 				{
 					url:
 					{
 						original: "?query",
 						resolved: null,
+						rebased: null,
 						redirected: null
 					},
 					base:
 					{
-						original: null,
-						resolved: null
+						resolved: null,
+						rebased: null
 					},
 					http: { response:null },
 					broken: true,
@@ -1019,31 +1076,34 @@ describe("INTERNAL -- checkUrl", function()
 				});
 			});
 		});
-		
-		
-		
+
+
+
 		it("a hash-relative url", function()
 		{
-			return checkUrl(
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options();
+			const link = Link.resolve(Link.create(),
 				"#hash",
-				null,
-				new UrlCache(),
-				helpers.options()
-			)
-			.then( function(result)
+				null
+			);
+
+			return checkUrl(link, auth, cache, options).then(result =>
 			{
-				expect(result).to.be.like(
+				expect(result).to.containSubset(
 				{
 					url:
 					{
 						original: "#hash",
 						resolved: null,
+						rebased: null,
 						redirected: null
 					},
 					base:
 					{
-						original: null,
-						resolved: null
+						resolved: null,
+						rebased: null
 					},
 					http: { response:null },
 					broken: true,
@@ -1055,31 +1115,34 @@ describe("INTERNAL -- checkUrl", function()
 				});
 			});
 		});
-		
-		
-		
+
+
+
 		it("an empty url", function()
 		{
-			return checkUrl(
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options();
+			const link = Link.resolve(Link.create(),
 				"",
-				null,
-				new UrlCache(),
-				helpers.options()
-			)
-			.then( function(result)
+				null
+			);
+
+			return checkUrl(link, auth, cache, options).then(result =>
 			{
-				expect(result).to.be.like(
+				expect(result).to.containSubset(
 				{
 					url:
 					{
 						original: "",
 						resolved: null,
+						rebased: null,
 						redirected: null
 					},
 					base:
 					{
-						original: null,
-						resolved: null
+						resolved: null,
+						rebased: null
 					},
 					http: { response:null },
 					broken: true,
@@ -1092,33 +1155,36 @@ describe("INTERNAL -- checkUrl", function()
 			});
 		});
 	});
-	
-	
-	
-	describe("shall be broken and have error from", function()
+
+
+
+	describe("shall be broken from", function()
 	{
 		it("a data uri", function()
 		{
-			return checkUrl(
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options();
+			const link = Link.resolve(Link.create(),
 				"data:image/gif;base64,R0lGODdhAQABAPAAAP///wAAACH/C1hNUCBEYXRhWE1QAz94cAAsAAAAAAEAAQAAAgJEAQA7",
-				null,
-				new UrlCache(),
-				helpers.options()
-			)
-			.then( function(result)
+				null
+			);
+
+			return checkUrl(link, auth, cache, options).then(result =>
 			{
-				expect(result).to.be.like(
+				expect(result).to.containSubset(
 				{
 					url:
 					{
 						original: "data:image/gif;base64,R0lGODdhAQABAPAAAP///wAAACH/C1hNUCBEYXRhWE1QAz94cAAsAAAAAAEAAQAAAgJEAQA7",
-						resolved: null,
+						resolved: {},
+						rebased: {},
 						redirected: null
 					},
 					base:
 					{
-						original: null,
-						resolved: null
+						resolved: null,
+						rebased: null
 					},
 					http: { response:null },
 					broken: true,
@@ -1130,31 +1196,34 @@ describe("INTERNAL -- checkUrl", function()
 				});
 			});
 		});
-		
-		
-		
+
+
+
 		it("a tel uri", function()
 		{
-			return checkUrl(
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options();
+			const link = Link.resolve(Link.create(),
 				"tel:+5-555-555-5555",
-				null,
-				new UrlCache(),
-				helpers.options()
-			)
-			.then( function(result)
+				null
+			);
+
+			return checkUrl(link, auth, cache, options).then(result =>
 			{
-				expect(result).to.be.like(
+				expect(result).to.containSubset(
 				{
 					url:
 					{
 						original: "tel:+5-555-555-5555",
-						resolved: null,
+						resolved: {},
+						rebased: {},
 						redirected: null
 					},
 					base:
 					{
-						original: null,
-						resolved: null
+						resolved: null,
+						rebased: null
 					},
 					http: { response:null },
 					broken: true,
@@ -1167,33 +1236,36 @@ describe("INTERNAL -- checkUrl", function()
 			});
 		});
 	});
-	
-	
-	
+
+
+
 	describe("shall not be broken with a REDIRECTED url", function()
 	{
 		it("containing no query or hash", function()
 		{
-			return checkUrl(
-				conn.absoluteUrls[0]+"/redirect/redirect.html",
-				conn.absoluteUrls[0],
-				new UrlCache(),
-				helpers.options()
-			)
-			.then( function(result)
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options();
+			const link = Link.resolve(Link.create(),
+				"http://blc/redirect/redirect.html",
+				"http://blc/"
+			);
+
+			return checkUrl(link, auth, cache, options).then(result =>
 			{
-				expect(result).to.be.like(
+				expect(result).to.containSubset(
 				{
 					url:
 					{
-						original:   conn.absoluteUrls[0]+"/redirect/redirect.html",
-						resolved:   conn.absoluteUrls[0]+"/redirect/redirect.html",
-						redirected: conn.absoluteUrls[0]+"/redirect/redirected.html"
+						original:          "http://blc/redirect/redirect.html",
+						resolved:   { href:"http://blc/redirect/redirect.html" },
+						rebased:    { href:"http://blc/redirect/redirect.html" },
+						redirected: { href:"http://blc/redirect/redirected.html" }
 					},
 					base:
 					{
-						original: conn.absoluteUrls[0],
-						resolved: conn.absoluteUrls[0]+"/"
+						resolved: { href:"http://blc/" },
+						rebased:  { href:"http://blc/" }
 					},
 					http: { response: { redirects:[] } },
 					broken: false,
@@ -1206,31 +1278,34 @@ describe("INTERNAL -- checkUrl", function()
 				expect(result.http.response.redirects).to.have.length(2);
 			});
 		});
-		
-		
-		
+
+
+
 		it("containing a query", function()
 		{
-			return checkUrl(
-				conn.absoluteUrls[0]+"/redirect/redirect.html?query",
-				conn.absoluteUrls[0],
-				new UrlCache(),
-				helpers.options()
-			)
-			.then( function(result)
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options();
+			const link = Link.resolve(Link.create(),
+				"http://blc/redirect/redirect.html?query",
+				"http://blc/"
+			);
+
+			return checkUrl(link, auth, cache, options).then(result =>
 			{
-				expect(result).to.be.like(
+				expect(result).to.containSubset(
 				{
 					url:
 					{
-						original:   conn.absoluteUrls[0]+"/redirect/redirect.html?query",
-						resolved:   conn.absoluteUrls[0]+"/redirect/redirect.html?query",
-						redirected: null
+						original:          "http://blc/redirect/redirect.html?query",
+						resolved:   { href:"http://blc/redirect/redirect.html?query" },
+						rebased:    { href:"http://blc/redirect/redirect.html?query" },
+						redirected: { href:"http://blc/redirect/redirected.html" },
 					},
 					base:
 					{
-						original: conn.absoluteUrls[0],
-						resolved: conn.absoluteUrls[0]+"/"
+						resolved: { href:"http://blc/" },
+						rebased:  { href:"http://blc/" }
 					},
 					http: { response: { redirects:[] } },
 					broken: false,
@@ -1240,34 +1315,37 @@ describe("INTERNAL -- checkUrl", function()
 					internal: true,
 					samePage: false
 				});
-				expect(result.http.response.redirects).to.have.length(0);
+				expect(result.http.response.redirects).to.have.length(2);
 			});
 		});
-		
-		
-		
+
+
+
 		it("containing a hash", function()
 		{
-			return checkUrl(
-				conn.absoluteUrls[0]+"/redirect/redirect.html#hash",
-				conn.absoluteUrls[0],
-				new UrlCache(),
-				helpers.options()
-			)
-			.then( function(result)
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options();
+			const link = Link.resolve(Link.create(),
+				"http://blc/redirect/redirect.html#hash",
+				"http://blc/"
+			);
+
+			return checkUrl(link, auth, cache, options).then(result =>
 			{
-				expect(result).to.be.like(
+				expect(result).to.containSubset(
 				{
 					url:
 					{
-						original:   conn.absoluteUrls[0]+"/redirect/redirect.html#hash",
-						resolved:   conn.absoluteUrls[0]+"/redirect/redirect.html#hash",
-						redirected: conn.absoluteUrls[0]+"/redirect/redirected.html"
+						original:          "http://blc/redirect/redirect.html#hash",
+						resolved:   { href:"http://blc/redirect/redirect.html#hash" },
+						rebased:    { href:"http://blc/redirect/redirect.html#hash" },
+						redirected: { href:"http://blc/redirect/redirected.html" }
 					},
 					base:
 					{
-						original: conn.absoluteUrls[0],
-						resolved: conn.absoluteUrls[0]+"/"
+						resolved: { href:"http://blc/" },
+						rebased:  { href:"http://blc/" }
 					},
 					http: { response: { redirects:[] } },
 					broken: false,
@@ -1281,157 +1359,155 @@ describe("INTERNAL -- checkUrl", function()
 			});
 		});
 	});
-	
-	
-	
-	describe("url object input", function()
-	{
-		it.skip("works", function()
-		{
-			
-		});
-	});
-	
-	
-	
+
+
+
 	describe("caching", function()
 	{
 		it("stores the response", function()
 		{
-			var cache = new UrlCache();
-			
-			return checkUrl(
-				conn.absoluteUrls[0]+"/normal/no-links.html",
-				conn.absoluteUrls[0],
-				cache,
-				helpers.options({ cacheResponses:true })
-			)
-			.then( function()
-			{
-				return cache.get( conn.absoluteUrls[0]+"/normal/no-links.html" );
-			})
-			.then( function(response)
-			{
-				expect(response).to.be.an("object");
-			});
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options({ cacheResponses:true });
+			const base = new URL("http://blc/");
+			const url  = new URL("http://blc/normal/no-links.html");
+			const link = Link.resolve(Link.create(), url, base);
+
+			return checkUrl(link, auth, cache, options)
+			.then(result => cache.get(url))
+			.then(response => expect(response).to.be.an("object"));
 		});
-		
-		
-		
+
+
+
 		it("stores the response of a redirected url", function()
 		{
-			var cache = new UrlCache();
-			
-			return checkUrl(
-				conn.absoluteUrls[0]+"/redirect/redirect.html",
-				conn.absoluteUrls[0],
-				cache,
-				helpers.options({ cacheResponses:true })
-			)
-			.then( function()
-			{
-				return cache.get( conn.absoluteUrls[0]+"/redirect/redirect.html" );
-			})
-			.then( function(response)
-			{
-				expect(response).to.be.an("object");
-			})
-			.then( function()
-			{
-				return cache.get( conn.absoluteUrls[0]+"/redirect/redirected.html" );
-			})
-			.then( function(response)
-			{
-				expect(response).to.be.an("object");
-			});
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options({ cacheResponses:true });
+			const base = new URL("http://blc/");
+			const url1 = new URL("http://blc/redirect/redirect.html");
+			const url2 = new URL("http://blc/redirect/redirected.html");
+			const link = Link.resolve(Link.create(), url1, base);
+
+			return checkUrl(link, auth, cache, options)
+			.then(result => cache.get(url1))
+			.then(response => expect(response).to.be.an("object"))
+			.then(() => cache.get(url2))
+			.then(response => expect(response).to.be.an("object"));
 		});
-		
-		
-		
-		// NOTE :: not stored because we check first
+
+
+
 		it("does not store the error from an erroneous url", function()
 		{
-			var cache = new UrlCache();
-			
-			return checkUrl(
-				"/normal/fake.html",
-				null,
-				cache,
-				helpers.options({ cacheResponses:true })
-			)
-			.then( function()
-			{
-				return cache.get("/normal/fake.html");
-			})
-			.then( function(response)
-			{
-				expect(response).to.be.undefined;
-			});
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options({ cacheResponses:true });
+			const link = Link.resolve(Link.create(), "/normal/fake.html", null);
+
+			return checkUrl(link, auth, cache, options)
+			.then(result => expect(cache.length).to.equal(0));
 		});
-		
-		
-		
+
+
+
 		it("requests a unique url only once", function()
 		{
-			var cache = new UrlCache();
-			
-			return checkUrl(
-				conn.absoluteUrls[0]+"/normal/no-links.html",
-				conn.absoluteUrls[0],
-				cache,
-				helpers.options({ cacheResponses:true })
-			)
-			.then( function()
-			{
-				return cache.get( conn.absoluteUrls[0]+"/normal/no-links.html" );
-			})
-			.then( function(response)
-			{
-				response._cached = true;
-			})
-			.then( function()
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options({ cacheResponses:true });
+			const base = new URL("http://blc/");
+			const url  = new URL("http://blc/normal/no-links.html");
+			const link = Link.resolve(Link.create(), url, base);
+
+			return checkUrl(link, auth, cache, options)
+			.then(result => cache.get(url))
+			.then(response => response._cached = true)
+			.then(() =>
 			{
 				// Check URL again
-				return checkUrl(
-					conn.absoluteUrls[0]+"/normal/no-links.html",
-					conn.absoluteUrls[0],
-					cache,
-					helpers.options({ cacheResponses:true })
-				);
+				const link = Link.resolve(Link.create(), url, base);
+
+				return checkUrl(link, auth, cache, options);
 			})
-			.then( function()
-			{
-				return cache.get( conn.absoluteUrls[0]+"/normal/no-links.html" );
-			})
-			.then( function(response)
-			{
-				expect(response._cached).to.be.true;
-			});
+			.then(() => cache.get(url))
+			.then(response => expect(response._cached).to.be.true);
 		});
 	});
-	
-	
-	
+
+
+
 	describe("options", function()
 	{
-		it.skip("acceptedSchemes = []", function()
+		it("acceptedSchemes = []", function()
 		{
-			
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options({ acceptedSchemes:[] });
+			const link = Link.resolve(Link.create(),
+				"http://blc/normal/no-links.html",
+				"http://blc/"
+			);
+
+			return checkUrl(link, auth, cache, options).then(result =>
+			{
+				expect(result).to.containSubset(
+				{
+					broken: true,
+					brokenReason: "BLC_INVALID",
+					excluded: null,
+					excludedReason: null
+				});
+			});
 		});
-		
-		
-		
+
+
+
+		it(`acceptedSchemes = ["http:","https:"]`, function()
+		{
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options({ acceptedSchemes:["http:","https:"] });
+
+			function link(url)
+			{
+				return Link.resolve(Link.create(), url);
+			}
+
+			return checkUrl(link("http://blc/normal/no-links.html"), auth, cache, options)
+			.then(result => expect(result).to.containSubset(
+			{
+				broken: false,
+				brokenReason: null,
+				excluded: null,
+				excludedReason: null
+			}))
+			.then(() => checkUrl(link("https://blc:81/normal/no-links.html"), auth, cache, options))
+			.then(result => expect(result).to.containSubset(
+			{
+				broken: false,
+				brokenReason: null,
+				excluded: null,
+				excludedReason: null
+			}));
+		});
+
+
+
 		it("retry405Head = false", function()
 		{
-			return checkUrl(
-				conn.absoluteUrls[0]+"/method-not-allowed/head.html",
-				conn.absoluteUrls[0],
-				new UrlCache(),
-				helpers.options()
-			)
-			.then( function(result)
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options();
+			const link = Link.resolve(Link.create(),
+				"http://blc/method-not-allowed/head.html",
+				"http://blc/"
+			);
+
+			return checkUrl(link, auth, cache, options).then(result =>
 			{
-				expect(result).to.be.like(
+				expect(result).to.containSubset(
 				{
 					broken: true,
 					brokenReason: "HTTP_405",
@@ -1440,42 +1516,22 @@ describe("INTERNAL -- checkUrl", function()
 				});
 			});
 		});
-		
-		
-		
-		it("retry405Head = false (#2)", function()
-		{
-			return checkUrl(
-				conn.absoluteUrls[0]+"/method-not-allowed/any.html",
-				conn.absoluteUrls[0],
-				new UrlCache(),
-				helpers.options({ requestMethod:"get" })
-			)
-			.then( function(result)
-			{
-				expect(result).to.be.like(
-				{
-					broken: true,
-					brokenReason: "HTTP_405",
-					excluded: null,
-					excludedReason: null
-				});
-			});
-		});
-		
-		
-		
+
+
+
 		it("retry405Head = true", function()
 		{
-			return checkUrl(
-				conn.absoluteUrls[0]+"/method-not-allowed/head.html",
-				conn.absoluteUrls[0],
-				new UrlCache(),
-				helpers.options({ retry405Head:true })
-			)
-			.then( function(result)
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options({ retry405Head:true });
+			const link = Link.resolve(Link.create(),
+				"http://blc/method-not-allowed/head.html",
+				"http://blc/"
+			);
+
+			return checkUrl(link, auth, cache, options).then(result =>
 			{
-				expect(result).to.be.like(
+				expect(result).to.containSubset(
 				{
 					broken: false,
 					brokenReason: null,
@@ -1484,20 +1540,46 @@ describe("INTERNAL -- checkUrl", function()
 				});
 			});
 		});
-		
-		
-		
+
+
+
+		it("retry405Head = false (#2)", function()
+		{
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options({ requestMethod:"get" });
+			const link = Link.resolve(Link.create(),
+				"http://blc/method-not-allowed/any.html",
+				"http://blc/"
+			);
+
+			return checkUrl(link, auth, cache, options).then(result =>
+			{
+				expect(result).to.containSubset(
+				{
+					broken: true,
+					brokenReason: "HTTP_405",
+					excluded: null,
+					excludedReason: null
+				});
+			});
+		});
+
+
+
 		it("retry405Head = true (#2)", function()
 		{
-			return checkUrl(
-				conn.absoluteUrls[0]+"/method-not-allowed/any.html",
-				conn.absoluteUrls[0],
-				new UrlCache(),
-				helpers.options({ retry405Head:true })
-			)
-			.then( function(result)
+			const auth = {};
+			const cache = new URLCache();
+			const options = helpers.options({ retry405Head:true });
+			const link = Link.resolve(Link.create(),
+				"http://blc/method-not-allowed/any.html",
+				"http://blc/"
+			);
+
+			return checkUrl(link, auth, cache, options).then(result =>
 			{
-				expect(result).to.be.like(
+				expect(result).to.containSubset(
 				{
 					broken: true,
 					brokenReason: "HTTP_405",
